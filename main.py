@@ -4,7 +4,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import re
-from ollama import chat
+import ollama
+
 '''Running the models locally using ollama. With VRam limitation of 8Gb, choosing the quantized version of the models. You could replace the models with Gemini or OpenAPI and use your API key instead of this though.'''
 MODELS = ['llama3:8b-instruct-q4_0', 'mistral:7b-instruct-q4_0']
 MODEL = MODELS[0]
@@ -18,6 +19,12 @@ class StoryInput(BaseModel):
 class AIResponse(BaseModel):
     questions_asked: List[str]
 
+
+# Configure Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+
+
+'''function to contact the LLM and do the necessary processing of the response to get the questions in List Form'''
 def generate_questions(story: str) -> List[str]:
     """
     Generates questions about loopholes and potential improvements for a given story using the chat API.
@@ -50,7 +57,7 @@ def generate_questions(story: str) -> List[str]:
     Keep the questions concise and thought-provoking.
     """
 
-    response = chat(model=MODEL, messages=[{'role': 'user', 'content': prompt}])
+    response = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': prompt}])
     parsed = response['message']['content']
 
     # Prompt to extract only the list in JSON-compatible format
@@ -83,7 +90,7 @@ def generate_questions(story: str) -> List[str]:
     Do not include any explanation or preamble — only output the JSON object.
     """
 
-    response2 = chat(model=MODEL, messages=[{'role': 'user', 'content': prompt2}])
+    response2 = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': prompt2}])
     parsed2 = response2['message']['content']
     print("Ollama Response 2:", parsed2)
 
@@ -94,18 +101,26 @@ def generate_questions(story: str) -> List[str]:
     print("Extracted Questions:", questions)
     return questions
 
-@app.get("/")
-async def read_root():
+@app.get("/", response_class = HTMLResponse)
+async def read_root(request : Request):
     """
     Handles GET requests to the root path ("/").
 
     Returns:
         A JSON response with the message "Home".
     """
-    return {"page": "Home"}
+    return templates.TemplateResponse("index.html",{"request":request,"title":"Story Polisher","heading":"Welcome to Story Polisher. \nFix the loopholes. \nMake your stories more entertaining."})
 
-@app.post("/polish")
-async def summarize(story_input: StoryInput):
+@app.get("/polish",response_class=HTMLResponse)
+async def polish_form(request: Request):
+    """
+    Handles GET requests to the "/polish" path.
+    Renders the polish.html template, which contains the form for submitting the story.
+    """
+    return templates.TemplateResponse("polish.html", {"request":request,"title":"Input Story","heading":"Please enter the story you want to polish."})
+
+@app.post("/polish", response_class=HTMLResponse)
+async def summarize(request : Request, story_input: str = Form(...)):
     """
     Handles POST requests to the "/polish" path.  This function is intended to 
     summarize a story, but in the current implementation, the story is hardcoded.
@@ -119,16 +134,16 @@ async def summarize(story_input: StoryInput):
         Returns status 696 if an error occurs, 717 on success.
     """
     # Hardcoded story.  The actual story provided by the user via the story_input parameter is ignored.
-    story_input = "There was a boy named Ram. He was a handsome guy. He studied Social Science. He gets married some day. He lives happily ever after."
+    # story_input = "There was a boy named Ram. He was a handsome guy. He studied Social Science. He gets married some day. He lives happily ever after."
     try:
         # Call the generate_questions function to get the list of questions.
         response = generate_questions(story_input)
     except Exception as e:
         # Handle exceptions during question generation.  Prints an error message and returns a 696 status.
-        print(f"Error occurred: {e}")
-        return {'status': 696}
+        error = f"Error occurred: {e}"
+        return templates.TemplateResponse("error.html", {"request":request, "title":"Error", "error_message": error})
     # Return a 717 status and the generated questions.
-    return {'status': 717, 'response': response}
+    return templates.TemplateResponse("results.html", {"request":request, "title":"Response", "questions":response})
 
 if __name__ == "__main__":
     import uvicorn
