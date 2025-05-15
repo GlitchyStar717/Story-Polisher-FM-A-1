@@ -86,7 +86,7 @@ async def read_root(request : Request):
     Returns:
         A JSON response with the message "Home".
     """
-    return templates.TemplateResponse("index.html",{"request":request,"title":"Story Polisher","heading":"Welcome to Story Polisher. \nFix the loopholes. \nMake your stories more entertaining."})
+    return templates.TemplateResponse(request, "index.html",{"request":request,"title":"Story Polisher","heading":"Welcome to Story Polisher. \nFix the loopholes. \nMake your stories more entertaining."})
 
 @app.get("/polish",response_class=HTMLResponse)
 async def polish_form(request: Request):
@@ -94,7 +94,7 @@ async def polish_form(request: Request):
     Handles GET requests to the "/polish" path.
     Renders the polish.html template, which contains the form for submitting the story.
     """
-    return templates.TemplateResponse("polish.html", {"request":request,"title":"Input Story","heading":"Please enter the story you want to polish."})
+    return templates.TemplateResponse(request, "polish.html", {"request":request,"title":"Input Story","heading":"Please enter the story you want to polish."})
 
 @app.post("/polish", response_class=HTMLResponse)
 async def summarize(request : Request, story_input: str = Form(...)):
@@ -118,9 +118,9 @@ async def summarize(request : Request, story_input: str = Form(...)):
     except Exception as e:
         # Handle exceptions during question generation.  Prints an error message and returns a 696 status.
         error = f"Error occurred: {e}"
-        return templates.TemplateResponse("error.html", {"request":request, "title":"Error", "error_message": error})
+        return templates.TemplateResponse(request, "error.html", {"request":request, "title":"Error", "error_message": error})
     # Return a 717 status and the generated questions.
-    return templates.TemplateResponse("results.html", {"request":request, "title":"Response", "questions":response})
+    return templates.TemplateResponse(request, "results.html", {"request":request, "title":"Response", "questions":response})
 
 if __name__ == "__main__":
     import uvicorn
