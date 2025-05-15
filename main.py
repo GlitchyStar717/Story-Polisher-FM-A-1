@@ -4,7 +4,15 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import re
-import ollama
+from google import genai
+import os
+from dotenv import load_dotenv
+import json
+
+load_dotenv()   
+API_KEY=os.getenv("API_KEY")
+client = genai.Client(api_key=API_KEY)
+
 
 '''Running the models locally using ollama. With VRam limitation of 8Gb, choosing the quantized version of the models. You could replace the models with Gemini or OpenAPI and use your API key instead of this though.'''
 MODELS = ['llama3:8b-instruct-q4_0', 'mistral:7b-instruct-q4_0']
@@ -57,49 +65,18 @@ def generate_questions(story: str) -> List[str]:
     Keep the questions concise and thought-provoking.
     """
 
-    response = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': prompt}])
-    parsed = response['message']['content']
 
-    # Prompt to extract only the list in JSON-compatible format
-    prompt2 = f"""
-    You are a formatter bot.
-
-    Convert the following list of questions into valid JSON according to this Pydantic model:
-
-    ```python
-    from pydantic import BaseModel
-    from typing import List
-
-    class AIResponse(BaseModel):
-        questions_asked: List[str]
-    ```
-
-    The input is:
-
-    \"\"\"{parsed}\"\"\"
-
-    Format the output so that it looks like:
-    {{
-        "questions_asked": [
-            "Question 1",
-            "Question 2",
-            ...
-        ]
-    }}
-
-    Do not include any explanation or preamble — only output the JSON object.
-    """
-
-    response2 = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': prompt2}])
-    parsed2 = response2['message']['content']
-    print("Ollama Response 2:", parsed2)
-
-    # Improved regex pattern (now handles multiple types of formatting reliably)
-    question_pattern = r'"(.*?)"'
-    questions = re.findall(question_pattern, parsed2)
-
-    print("Extracted Questions:", questions)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=prompt, 
+        config={
+                    'response_mime_type': 'application/json',
+                    'response_schema': AIResponse,
+                },
+    )
+    parsed = json.loads(response.text)
+    questions = parsed["questions_asked"]
     return questions
+
 
 @app.get("/", response_class = HTMLResponse)
 async def read_root(request : Request):
